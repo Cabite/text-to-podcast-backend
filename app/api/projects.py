@@ -1,4 +1,6 @@
-from uuid import UUID
+from typing import Annotated
+
+from fastapi import Path
 
 from fastapi import APIRouter, Query, Request
 
@@ -7,6 +9,8 @@ from app.core.common import envelope
 from app.schemas import Envelope, ProjectCreate, SourceSubmit
 from app.services import projects
 from app.services.views import owned_project, project_view
+
+PathId = Annotated[int, Path(gt=0)]
 
 router = APIRouter(prefix="/api/v1/projects", tags=["项目模块"])
 
@@ -24,10 +28,10 @@ def listing(request: Request, session: SessionDep, user: UserDep,
 
 
 @router.get("/{project_id}", response_model=Envelope[dict], summary="项目详情与任务恢复")
-def detail(project_id: UUID, request: Request, session: SessionDep, user: UserDep):
-    return envelope(request, project_view(session, owned_project(session, str(project_id), user)))
+def detail(project_id: PathId, request: Request, session: SessionDep, user: UserDep):
+    return envelope(request, project_view(session, owned_project(session, project_id, user)))
 
 
 @router.put("/{project_id}/source", response_model=Envelope[dict], summary="确认提交并锁定原文")
-def source(project_id: UUID, body: SourceSubmit, request: Request, session: SessionDep, user: UserDep):
-    return envelope(request, projects.submit_source(session, user, str(project_id), body.text))
+def source(project_id: PathId, body: SourceSubmit, request: Request, session: SessionDep, user: UserDep):
+    return envelope(request, projects.submit_source(session, user, project_id, body.text))

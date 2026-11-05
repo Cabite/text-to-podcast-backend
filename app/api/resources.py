@@ -1,4 +1,6 @@
-from uuid import UUID
+from typing import Annotated
+
+from fastapi import Path
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse
@@ -7,6 +9,8 @@ from sqlalchemy import func, select
 from app.api.dependencies import SessionDep, UserDep
 from app.core.common import BusinessError, envelope, iso
 from app.db.models import Asset, RoleProfile
+
+PathId = Annotated[int, Path(gt=0)]
 
 router = APIRouter(prefix="/api/v1")
 
@@ -24,7 +28,7 @@ def roles(request: Request, session: SessionDep, user: UserDep,
 
 
 def file_response(asset_id, request, session, user, download):
-    asset = session.get(Asset, str(asset_id))
+    asset = session.get(Asset, asset_id)
     if asset is None or asset.user_id != user or asset.status != "ready" or asset.kind != "full_audio":
         raise BusinessError("RESOURCE_NOT_FOUND", "音频不存在", 404)
     path = request.app.state.storage.readable(asset.object_key)
@@ -35,10 +39,10 @@ def file_response(asset_id, request, session, user, download):
 
 
 @router.get("/audio-assets/{asset_id}/download", tags=["语音模块"], summary="下载完整测试MP3", response_class=FileResponse)
-def download(asset_id: UUID, request: Request, session: SessionDep, user: UserDep):
+def download(asset_id: PathId, request: Request, session: SessionDep, user: UserDep):
     return file_response(asset_id, request, session, user, True)
 
 
 @router.get("/audio-assets/{asset_id}/play", tags=["语音模块"], summary="播放完整测试MP3", response_class=FileResponse)
-def play(asset_id: UUID, request: Request, session: SessionDep, user: UserDep):
+def play(asset_id: PathId, request: Request, session: SessionDep, user: UserDep):
     return file_response(asset_id, request, session, user, False)

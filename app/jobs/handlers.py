@@ -2,7 +2,7 @@ from copy import deepcopy
 
 from sqlalchemy import func, select
 
-from app.core.common import BusinessError, new_id, utcnow
+from app.core.common import BusinessError, utcnow
 from app.db.database import transaction
 from app.db.models import Asset, AudioVersion, Project, Script, ScriptRole, ScriptSentence, Task
 from app.integrations.contracts import GeneratedScript
@@ -63,7 +63,7 @@ def publish_audio(database, storage, job, generated):
             audio = session.get(AudioVersion, task.audio_version_id)
             if audio is None or audio.status != "running":
                 raise BusinessError("TASK_STATE_CONFLICT", "音频版本状态不匹配")
-            asset = Asset(id=new_id(), user_id=task.user_id, object_key=key, size_bytes=size,
+            asset = Asset(user_id=task.user_id, object_key=key, size_bytes=size,
                 duration_ms=generated.duration_ms, sha256=sha, metadata_json=deepcopy(generated.metadata))
             session.add(asset)
             session.flush()

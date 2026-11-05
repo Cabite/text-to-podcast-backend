@@ -5,7 +5,7 @@ import json
 
 from sqlalchemy import func, select, update
 
-from app.core.common import BusinessError, new_id, utcnow
+from app.core.common import BusinessError, new_token, utcnow
 from app.db.database import transaction
 from app.db.models import AudioVersion, LLMModel, Project, RoleProfile, Script, Task
 from app.services.views import accepted, owned_project, script_view
@@ -40,13 +40,13 @@ def submit(session, user_id, project_id, task_type, body, key, settings):
             snapshot["prompt"] = "mock-script-v1：返回预置测试脚本，不调用真实模型"
             snapshot["roles"] = []
             for role in body.roles:
-                profile = session.get(RoleProfile, str(role.profile_id))
+                profile = session.get(RoleProfile, role.profile_id)
                 if profile is None or profile.user_id != user_id or profile.status != "enabled":
                     raise BusinessError("INVALID_ROLE", "角色配置不存在或不可使用", 422)
                 snapshot["roles"].append({"profile_id": profile.id, "role_key": role.role_key, "name": profile.name,
                     "description": profile.description, "voice_config": deepcopy(profile.voice_config)})
         else:
-            script = session.scalar(select(Script).where(Script.id == str(body.script_id), Script.project_id == project.id).with_for_update())
+            script = session.scalar(select(Script).where(Script.id == body.script_id, Script.project_id == project.id).with_for_update())
             if script is None:
                 raise BusinessError("RESOURCE_NOT_FOUND", "脚本不存在", 404)
             if script.version != body.expected_script_version or script.edit_revision != body.expected_edit_revision:
@@ -81,7 +81,7 @@ def claim(database, settings):
                               .limit(1).with_for_update(skip_locked=True))
         if task is None:
             return None
-        token = new_id()
+        token = new_token()
         now = utcnow()
         changed = session.execute(update(Task).where(Task.id == task.id, Task.status == "queued")
             .values(status="running", stage="calling_llm" if task.task_type == "script" else "synthesizing",

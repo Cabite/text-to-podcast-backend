@@ -32,7 +32,7 @@ def wait(base, tid, minimum_delay):
     deadline = time.monotonic() + 60
     begun = time.monotonic()
     while time.monotonic() < deadline:
-        _, payload = call(base, 'GET', '/api/v1/tasks/' + tid)
+        _, payload = call(base, 'GET', f'/api/v1/tasks/{tid}')
         task = payload['data']
         if task['status'] == 'failed':
             raise AssertionError(task)
@@ -61,7 +61,7 @@ def flow(base, output, minimum_delay=9.5):
     assert status == 202 and script_accept_seconds < 2
     script_task, script_seconds = wait(base, payload['data']['task_id'], minimum_delay)
     sid = script_task['result']['script_id']
-    _, payload = call(base, 'GET', '/api/v1/scripts/' + sid)
+    _, payload = call(base, 'GET', f'/api/v1/scripts/{sid}')
     script = payload['data']
     assert [s['sequence'] for s in script['sentences']] == list(range(1, len(script['sentences']) + 1))
     confirmation = {'expected_script_version': script['version'], 'expected_edit_revision': script['edit_revision']}

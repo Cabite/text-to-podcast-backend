@@ -59,7 +59,7 @@ cd text-to-podcast-backend
 脚本生成请求体：
 
 ```json
-{"roles":[{"profile_id":"00000000-0000-4000-8000-000000000003","role_key":"host"}]}
+{"roles":[{"profile_id":1,"role_key":"host"}]}
 ```
 
 确认脚本请求体：
@@ -71,10 +71,12 @@ cd text-to-podcast-backend
 音频生成请求体：
 
 ```json
-{"script_id":"替换为实际脚本ID","expected_script_version":1,"expected_edit_revision":1}
+{"script_id":1,"expected_script_version":1,"expected_edit_revision":1}
 ```
 
-版本和修订号应从脚本详情读取。两个生成接口必须携带 `Idempotency-Key` 请求头：相同用户、相同键和相同请求复用原任务；同键不同请求返回 409。新一次生成需使用新键。同一项目同时只允许一个生成任务。
+业务 ID 均为数据库自动分配的正整数，每张表分别递增；新数据库的开发用户、模型和角色配置 ID 均为 `1`。例如项目详情为 `/api/v1/projects/1`，生成脚本的角色配置传 `"profile_id": 1`。请求体中的 ID 必须是 JSON 数字，不要加引号；上方音频示例的 `script_id: 1` 需按实际生成结果填写。请求追踪 `request_id`、文件存储名、Worker 租约令牌仍使用随机字符串，不属于业务主键；模型厂商自己的 `voice_id` 等外部标识保持原格式。
+
+版本和修订号应从脚本详情读取。两个生成接口必须携带 `Idempotency-Key` 请求头：相同用户、相同键和相同请求复用原任务；同键不同请求返回 409。新一次生成需使用新键。同一项目同时只允许一个生成任务。幂等键可用 `script-test-001` 等普通字符串，不要求 UUID。
 
 首次脚本任务完成后，从任务 `data.result.script_id` 获取脚本 ID；音频任务完成后，从 `data.result.download_url` 获取下载路径。状态为 `queued` / `running` 时继续轮询，为 `failed` 时读取 `error_code` 和 `error_message`。
 
@@ -130,7 +132,17 @@ LLM 成员实现 `integrations/contracts.py` 的 `ScriptGenerator.generate(snaps
 DATABASE_URL=mysql+pymysql://textcast:change-me@127.0.0.1:3306/textcast?charset=utf8mb4
 ```
 
-先创建数据库和账户，再执行 `python -m app.bootstrap`。切换连接不会搬迁 SQLite 中的数据。当前实际运行测试使用 SQLite；MySQL 迁移另做离线 DDL 校验，尚未连接 MySQL 实例验证。
+先创建数据库和账户，再执行 `python -m app.bootstrap`。切换连接不会搬迁 SQLite 中的数据。当前实际运行测试使用 SQLite；MySQL 初始迁移做了离线 DDL 校验，整数模型做了 DDL 编译校验，尚未连接 MySQL 实例验证。ID 数据迁移必须在线运行，不支持用 `alembic upgrade head --sql` 导出后离线转换现有数据。
+
+### 从 UUID 版本升级
+
+1. 停止 API 和所有 Worker，避免迁移期间旧进程继续读写。
+2. 若有 `.env`，将 `DEVELOPMENT_USER_ID` 改为 `1`。
+3. 在仓库根目录执行 `python -m app.bootstrap`，然后重新启动 API 和 Worker。
+
+迁移保留现有项目、脚本、音频文件、任务以及表之间的关联，并转换 JSON 快照里的业务 ID、播放下载路径和幂等请求签名。旧 UUID URL 将失效，请重新查询项目列表并更新 Apifox 的路径参数、请求体及环境变量；也可从运行中的 `/openapi.json` 重新导入整数类型定义。
+
+升级现有 SQLite 数据库时，初始化命令会先在数据库所在目录的 `backups/` 下生成完整旧库备份，升级成功后在旁边保存 `.mapping.json`，记录各表旧 UUID 到新整数的映射。SQLite 迁移事务失败会回滚，不会清空旧数据；需要回退代码时使用旧库备份恢复，不支持自动降级 ID 迁移。MySQL 的 DDL 不具备相同事务回滚保证，已有 MySQL 数据应先使用数据库备份工具完成备份，再升级。
 
 当前使用固定开发用户，尚未实现登录鉴权、TXT 上传、脚本编辑/取消确认、历史版本列表、试听、逐句合成与重新生成、声音克隆、模型密钥管理等接口。服务默认仅监听本机，用于团队联调；后续可以沿现有路由、服务、迁移和生成协议补充业务。原有核心 API 设计文档保持原样，不能将完整设计中的全部接口视为已实现。
 

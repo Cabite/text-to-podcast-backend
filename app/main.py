@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import generation, projects, resources
-from app.core.common import BusinessError, iso, new_id, utcnow
+from app.core.common import BusinessError, iso, new_token, utcnow
 from app.core.config import Settings
 from app.db.database import Database
 from app.db.models import User
@@ -29,7 +29,7 @@ def create_app(settings=None):
         yield
         database.engine.dispose()
 
-    app = FastAPI(title="TextCast 后端最小闭环（模拟服务）", version="0.2.0", lifespan=lifespan,
+    app = FastAPI(title="TextCast 后端最小闭环（模拟服务）", version="0.3.0", lifespan=lifespan,
         description="本地单用户调研框架。固定开发身份，无登录认证。脚本与音频生成各等待10秒后返回内置测试结果。")
     app.state.settings, app.state.database = settings, database
     app.state.storage = LocalStorage(settings.storage_dir)
@@ -38,7 +38,7 @@ def create_app(settings=None):
 
     @app.middleware("http")
     async def request_id(request, call_next):
-        request.state.request_id = new_id()
+        request.state.request_id = new_token()
         response = await call_next(request)
         response.headers["X-Request-Id"] = request.state.request_id
         response.headers["Cache-Control"] = "no-store"
@@ -46,7 +46,7 @@ def create_app(settings=None):
 
     def error(request, code, message, status):
         return JSONResponse(status_code=status, content={"code": code, "message": message, "data": None,
-            "request_id": getattr(request.state, "request_id", new_id()), "timestamp": iso(utcnow())})
+            "request_id": getattr(request.state, "request_id", new_token()), "timestamp": iso(utcnow())})
 
     @app.exception_handler(BusinessError)
     async def business_error(request, exc):

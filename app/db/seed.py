@@ -1,8 +1,8 @@
 from app.db.database import transaction
 from app.db.models import LLMModel, RoleProfile, User
 
-MODEL_ID = "00000000-0000-4000-8000-000000000002"
-ROLE_ID = "00000000-0000-4000-8000-000000000003"
+MODEL_ID = 1
+ROLE_ID = 1
 
 
 def seed(database, settings):

@@ -1,9 +1,11 @@
-from typing import Generic, Literal, TypeVar
-from uuid import UUID
+from typing import Annotated, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 T = TypeVar("T")
+
+# JSON IDs are positive integers; reject booleans and floating-point values.
+Id = Annotated[int, Field(gt=0, strict=True)]
 
 
 class Envelope(BaseModel, Generic[T]):
@@ -41,7 +43,7 @@ class SourceSubmit(Input):
 
 
 class RoleChoice(Input):
-    profile_id: UUID
+    profile_id: Id
     role_key: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_]+$")
 
 
@@ -62,23 +64,23 @@ class ConfirmScript(Input):
 
 
 class AudioGenerate(ConfirmScript):
-    script_id: UUID
+    script_id: Id
 
 
 class TaskAccepted(BaseModel):
-    task_id: str
+    task_id: Id
     task_type: Literal["script", "audio"]
     audio_action: Literal["full"] | None
     status: Literal["queued", "running", "succeeded", "failed"]
-    script_id: str | None
-    audio_version_id: str | None
+    script_id: Id | None
+    audio_version_id: Id | None
     candidate_id: None = None
     status_url: str
 
 
 class RoleView(BaseModel):
-    role_id: str
-    profile_id: str
+    role_id: Id
+    profile_id: Id
     role_key: str
     name: str
     description: str | None
@@ -86,24 +88,24 @@ class RoleView(BaseModel):
 
 
 class SentenceView(BaseModel):
-    sentence_id: str
+    sentence_id: Id
     sequence: int
-    role_id: str
+    role_id: Id
     text: str
     speed: float | None
     extra_params: dict
 
 
 class ScriptView(BaseModel):
-    script_id: str
-    project_id: str
+    script_id: Id
+    project_id: Id
     version: int
     edit_revision: int
     title: str
     summary: str | None
     status: Literal["draft", "confirmed"]
     confirmed_at: str | None
-    confirmed_by: str | None
+    confirmed_by: Id | None
     confirmed_revision: int | None
     editable: bool
     roles: list[RoleView]

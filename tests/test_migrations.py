@@ -11,7 +11,7 @@ def test_mysql_migration_builds_deferred_foreign_keys(monkeypatch):
     monkeypatch.setenv('DATABASE_URL', 'mysql+pymysql://user:password@localhost/textcast')
     output = StringIO()
     config = Config(str(ROOT / 'alembic.ini'), output_buffer=output)
-    command.upgrade(config, 'head', sql=True)
+    command.upgrade(config, '6cd3f46a61e0', sql=True)
     sql = output.getvalue()
     assert sql.count('CREATE TABLE ') == 11  # 10 张业务表，加 alembic_version
     for name in ['fk_project_current_script', 'fk_project_confirmed_script',

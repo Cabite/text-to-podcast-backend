@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.bootstrap import initialize
-from app.core.common import BusinessError, new_id, utcnow
+from app.core.common import BusinessError, utcnow
 from app.core.config import Settings
 from app.db.database import transaction
 from app.db.models import Asset, Project, Script, Task, User
@@ -141,7 +141,7 @@ def test_no_source_and_invalid_role(env):
     assert submit_script(env, pid).json()["code"] == "SOURCE_NOT_SUBMITTED"
     env.client.put(f"/api/v1/projects/{pid}/source", json={"text": "已提交"})
     r = env.client.post(f"/api/v1/projects/{pid}/script/generate", headers={"Idempotency-Key": "missing-role"},
-        json={"roles": [{"profile_id": new_id(), "role_key": "host"}]})
+        json={"roles": [{"profile_id": 999999, "role_key": "host"}]})
     assert r.status_code == 422 and r.json()["code"] == "INVALID_ROLE"
     with env.db.sessions() as session:
         assert session.scalar(select(func.count()).select_from(Task)) == 0
@@ -222,9 +222,11 @@ def test_queued_task_survives_api_restart(env):
 
 
 def test_other_user_resources_are_hidden(env):
-    other = new_id()
     with env.db.sessions() as session, transaction(session):
-        session.add(User(id=other, username="other_user"))
+        other_user = User(username="other_user")
+        session.add(other_user)
+        session.flush()
+        other = other_user.id
     other_app = create_app(Settings(database_url=env.settings.database_url,
         storage_dir=env.settings.storage_dir, development_user_id=other))
     with TestClient(other_app) as client:
@@ -261,3 +263,40 @@ def test_validation_uses_uniform_errors(env):
     assert r.status_code == 422
     assert set(r.json()) == {"code", "message", "data", "request_id", "timestamp"}
     assert r.json()["request_id"] == r.headers["x-request-id"]
+
+
+def test_integer_ids_are_generated_and_never_reused(env):
+    from app.db.models import Base
+    from sqlalchemy import Integer, inspect
+    from sqlalchemy.schema import CreateTable
+    from sqlalchemy.dialects.mysql import dialect
+
+    first = create_project(env, text=False)
+    second = create_project(env, text=False)
+    assert type(first) is int and second == first + 1
+    with env.db.sessions() as session, transaction(session):
+        session.delete(session.get(Project, second))
+    assert create_project(env, text=False) > second
+    for table in Base.metadata.tables.values():
+        assert isinstance(table.c.id.type, Integer)
+        assert 'AUTO_INCREMENT' in str(CreateTable(table).compile(dialect=dialect()))
+        for fk in table.foreign_keys:
+            assert isinstance(fk.parent.type, Integer)
+        actual = inspect(env.db.engine).get_columns(table.name)
+        assert isinstance(next(c for c in actual if c['name'] == 'id')['type'], Integer)
+
+
+@pytest.mark.parametrize('invalid', [0, -1, '00000000-0000-4000-8000-000000000001', 'abc'])
+def test_path_ids_reject_invalid_values(env, invalid):
+    for route in ['projects', 'scripts', 'tasks']:
+        assert env.client.get(f'/api/v1/{route}/{invalid}').status_code == 422
+    assert env.client.get(f'/api/v1/audio-assets/{invalid}/download').status_code == 422
+
+
+@pytest.mark.parametrize('invalid', [0, -1, True, 1.5, '1'])
+def test_body_ids_require_positive_json_integer(env, invalid):
+    pid = create_project(env)
+    r = env.client.post(f'/api/v1/projects/{pid}/script/generate',
+        headers={'Idempotency-Key': 'invalid-integer'},
+        json={'roles': [{'profile_id': invalid, 'role_key': 'host'}]})
+    assert r.status_code == 422

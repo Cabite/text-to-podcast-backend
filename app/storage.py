@@ -1,7 +1,7 @@
 import hashlib
 from pathlib import Path
 
-from app.core.common import BusinessError, new_id
+from app.core.common import BusinessError, new_token
 
 
 class LocalStorage:
@@ -18,7 +18,7 @@ class LocalStorage:
     def save_mp3(self, content):
         if not content or not (content.startswith(b"ID3") or content[:1] == b"\xff"):
             raise BusinessError("INVALID_AUDIO_RESULT", "音频服务未返回有效的MP3数据")
-        key = new_id() + ".mp3"
+        key = new_token() + ".mp3"
         target = self.path(key)
         temporary = target.with_suffix(".tmp")
         try:

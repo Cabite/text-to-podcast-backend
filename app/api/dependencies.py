@@ -19,5 +19,5 @@ def idempotency_key(value: Annotated[str, Header(alias="Idempotency-Key", min_le
 
 
 SessionDep = Annotated[Session, Depends(get_session)]
-UserDep = Annotated[str, Depends(current_user)]
+UserDep = Annotated[int, Depends(current_user)]
 IdempotencyDep = Annotated[str, Depends(idempotency_key)]

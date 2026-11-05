@@ -11,7 +11,8 @@ def iso(value):
     return value.isoformat(timespec="milliseconds") + "Z" if value else None
 
 
-def new_id():
+def new_token():
+    """Opaque tracing/storage/lease token; business IDs come from the database."""
     return str(uuid4())
 
 
