@@ -10,7 +10,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import generation, projects, resources
+from app.api import configuration, generation, projects, resources
 from app.core.common import BusinessError, iso, new_token, utcnow
 from app.core.config import Settings
 from app.db.database import Database
@@ -33,7 +33,7 @@ def create_app(settings=None):
         description="本地单用户调研框架。固定开发身份，无登录认证。脚本与音频生成各等待10秒后返回内置测试结果。")
     app.state.settings, app.state.database = settings, database
     app.state.storage = LocalStorage(settings.storage_dir)
-    app.add_middleware(CORSMiddleware, allow_origins=[settings.cors_origin], allow_methods=["GET", "POST", "PUT"],
+    app.add_middleware(CORSMiddleware, allow_origins=[settings.cors_origin], allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "Idempotency-Key"], expose_headers=["X-Request-Id", "Location", "Retry-After"])
 
     @app.middleware("http")
@@ -92,6 +92,7 @@ def create_app(settings=None):
     app.include_router(projects.router)
     app.include_router(generation.router)
     app.include_router(resources.router)
+    app.include_router(configuration.router)
     return app
 
 
